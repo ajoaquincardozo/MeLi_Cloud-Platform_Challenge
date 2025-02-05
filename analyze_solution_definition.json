@@ -1,0 +1,21 @@
+{
+    "solution_path": "./",
+    "name": "MeliChallenge",
+    "layers": [
+        "MeLi.UrlShortener.Api",
+        "MeLi.UrlShortener.Application",
+        "MeLi.UrlShortener.Domain",
+        "MeLi.UrlShortener.Infrastructure"
+    ],
+    "process_all_files": true,
+    "files_to_process": {
+        "Domain.Core": [
+            { "path": "Models\\.cs$" },
+            { "path": "Interfaces\\.cs$" }
+        ],
+        "Infrastructure": [
+            { "path": "Services\\.cs$" },
+            { "path": "Repositories\\.cs$" }
+        ]
+    }
+}
