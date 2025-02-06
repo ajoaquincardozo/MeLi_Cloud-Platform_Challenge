@@ -41,7 +41,7 @@ namespace MeLi.UrlShortener.Application.Services
             await _urlRepository.SaveAsync(urlEntity);
 
             return new UrlResponseDto(
-                $"{_generalConfig.BaseUrl}/api/url/{shortCode}",
+                $"{_generalConfig.BaseUrl}/{shortCode}",
                 urlEntity.LongUrl.Value,
                 urlEntity.CreatedAt,
                 urlEntity.AccessCount
@@ -68,7 +68,7 @@ namespace MeLi.UrlShortener.Application.Services
                 ?? throw new KeyNotFoundException("Short URL not found");
 
             return new UrlResponseDto(
-                $"{_generalConfig.BaseUrl}/api/url/{urlEntity.ShortCode}",
+                $"{_generalConfig.BaseUrl}/{urlEntity.ShortCode}",
                 urlEntity.LongUrl.Value,
                 urlEntity.CreatedAt,
                 urlEntity.AccessCount

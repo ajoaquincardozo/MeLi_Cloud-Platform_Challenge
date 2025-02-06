@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace MeLi.UrlShortener.Api.Controllers
 {
     [ApiController]
-    [Route("api/[controller]")]
+    [Route("/")]
     public class UrlController : ControllerBase
     {
         private readonly IUrlService _urlService;
