@@ -3,6 +3,7 @@ using MongoDB.Bson.Serialization;
 using MongoDB.Bson.Serialization.Conventions;
 using MongoDB.Bson.Serialization.Serializers;
 using MeLi.UrlShortener.Domain.Entities;
+using MongoDB.Bson.Serialization.IdGenerators;
 
 namespace MeLi.UrlShortener.Infrastructure.Persistence.Mapping
 {
@@ -11,11 +12,18 @@ namespace MeLi.UrlShortener.Infrastructure.Persistence.Mapping
         public static void Configure()
         {
             // Convenciones globales
+            //BsonDefaults.GuidRepresentationMode = GuidRepresentationMode.V3;
+            //BsonSerializer.RegisterSerializer(new GuidSerializer(GuidRepresentation.Standard));
+            //BsonSerializer.RegisterSerializer(new DecimalSerializer(BsonType.Decimal128));
+            //BsonSerializer.RegisterSerializer(new NullableSerializer<decimal>(new DecimalSerializer(BsonType.Decimal128)));
+
             var pack = new ConventionPack
             {
+                new IgnoreExtraElementsConvention(true),
                 new CamelCaseElementNameConvention(),
                 new IgnoreIfNullConvention(true)
             };
+
             ConventionRegistry.Register("CustomConventions", pack, _ => true);
 
             // Configuración de mapeo para UrlEntity
@@ -23,11 +31,10 @@ namespace MeLi.UrlShortener.Infrastructure.Persistence.Mapping
             {
                 BsonClassMap.RegisterClassMap<UrlEntity>(cm =>
                 {
-                    cm.SetIgnoreExtraElements(true);
-
                     // Mapeo del Id
                     cm.MapIdMember(c => c.Id)
-                        .SetSerializer(new StringSerializer(BsonType.ObjectId));
+                        .SetSerializer(new StringSerializer(BsonType.String))
+                        .SetIdGenerator(StringObjectIdGenerator.Instance);
 
                     // Mapeo de campos privados
                     cm.MapField("_longUrlString")

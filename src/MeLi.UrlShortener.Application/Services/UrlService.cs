@@ -1,7 +1,9 @@
-﻿using MeLi.UrlShortener.Application.DTOs;
+﻿using MeLi.UrlShortener.Application.Config;
+using MeLi.UrlShortener.Application.DTOs;
 using MeLi.UrlShortener.Application.Interfaces;
 using MeLi.UrlShortener.Domain.Entities;
 using MeLi.UrlShortener.Domain.Interfaces;
+using Microsoft.Extensions.Options;
 
 namespace MeLi.UrlShortener.Application.Services
 {
@@ -10,15 +12,18 @@ namespace MeLi.UrlShortener.Application.Services
         private readonly IUrlRepository _urlRepository;
         private readonly IShortCodeGenerator _codeGenerator;
         private readonly IUrlValidator _urlValidator;
+        private readonly GeneralConfig _generalConfig;
 
         public UrlService(
             IUrlRepository urlRepository,
             IShortCodeGenerator codeGenerator,
-            IUrlValidator urlValidator)
+            IUrlValidator urlValidator,
+            IOptions<GeneralConfig> generalConfig)
         {
-            _urlRepository = urlRepository;
-            _codeGenerator = codeGenerator;
-            _urlValidator = urlValidator;
+            _urlRepository = urlRepository ?? throw new ArgumentNullException(nameof(urlRepository));
+            _codeGenerator = codeGenerator ?? throw new ArgumentNullException(nameof(codeGenerator));
+            _urlValidator = urlValidator ?? throw new ArgumentNullException(nameof(urlValidator));
+            _generalConfig = generalConfig?.Value ?? throw new ArgumentNullException(nameof(generalConfig));
         }
 
         public async Task<UrlResponseDto> CreateShortUrlAsync(CreateShortUrlRequest request)
@@ -36,7 +41,7 @@ namespace MeLi.UrlShortener.Application.Services
             await _urlRepository.SaveAsync(urlEntity);
 
             return new UrlResponseDto(
-                $"https://me.li/{shortCode}",
+                $"{_generalConfig.BaseUrl}/api/url/{shortCode}",
                 urlEntity.LongUrl.Value,
                 urlEntity.CreatedAt,
                 urlEntity.AccessCount
@@ -63,7 +68,7 @@ namespace MeLi.UrlShortener.Application.Services
                 ?? throw new KeyNotFoundException("Short URL not found");
 
             return new UrlResponseDto(
-                $"https://me.li/{urlEntity.ShortCode}",
+                $"{_generalConfig.BaseUrl}/api/url/{urlEntity.ShortCode}",
                 urlEntity.LongUrl.Value,
                 urlEntity.CreatedAt,
                 urlEntity.AccessCount

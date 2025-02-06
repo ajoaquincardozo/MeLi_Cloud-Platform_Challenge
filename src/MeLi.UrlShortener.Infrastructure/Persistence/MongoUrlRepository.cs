@@ -16,23 +16,6 @@ namespace MeLi.UrlShortener.Infrastructure.Persistence
             var client = new MongoClient(settings.Value.ConnectionString);
             var database = client.GetDatabase(settings.Value.DatabaseName);
             _urlCollection = database.GetCollection<UrlEntity>(settings.Value.CollectionName);
-
-            CreateIndexes();
-        }
-
-        private void CreateIndexes()
-        {
-            // Índice único para shortCode
-            var shortCodeIndex = Builders<UrlEntity>.IndexKeys.Ascending(x => x.ShortCode);
-            var indexOptions = new CreateIndexOptions { Unique = true };
-            var indexModel = new CreateIndexModel<UrlEntity>(shortCodeIndex, indexOptions);
-            _urlCollection.Indexes.CreateOne(indexModel);
-
-            // Índice para búsquedas frecuentes
-            var searchIndex = Builders<UrlEntity>.IndexKeys
-                .Ascending(x => x.IsActive)
-                .Descending(x => x.AccessCount);
-            _urlCollection.Indexes.CreateOne(new CreateIndexModel<UrlEntity>(searchIndex));
         }
 
         public async Task<UrlEntity> SaveAsync(UrlEntity url)
@@ -43,13 +26,17 @@ namespace MeLi.UrlShortener.Infrastructure.Persistence
 
         public async Task<UrlEntity?> GetByShortCodeAsync(string shortCode)
         {
-            return await _urlCollection.Find(x => x.ShortCode == shortCode && x.IsActive)
+            var filter = Builders<UrlEntity>.Filter.Eq("shortCode", shortCode);
+
+            return await _urlCollection.Find(filter)
                                      .FirstOrDefaultAsync();
         }
 
         public async Task<bool> ExistsAsync(string shortCode)
         {
-            return await _urlCollection.Find(x => x.ShortCode == shortCode)
+            var filter = Builders<UrlEntity>.Filter.Eq("shortCode", shortCode);
+
+            return await _urlCollection.Find(filter)
                                      .AnyAsync();
         }
 
@@ -69,8 +56,11 @@ namespace MeLi.UrlShortener.Infrastructure.Persistence
                 .Inc(x => x.AccessCount, 1)
                 .Set(x => x.LastAccessedAt, DateTime.UtcNow);
 
+            var filterByShortCode = Builders<UrlEntity>.Filter.Eq("shortCode", shortCode);
+            var filterIsActive = Builders<UrlEntity>.Filter.Eq(x => x.IsActive, true);
+
             await _urlCollection.UpdateOneAsync(
-                x => x.ShortCode == shortCode && x.IsActive,
+                filterByShortCode & filterIsActive,
                 update);
         }
 

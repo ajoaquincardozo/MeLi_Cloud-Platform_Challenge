@@ -4,6 +4,7 @@ using MeLi.UrlShortener.Api.Middleware;
 using MeLi.UrlShortener.Application.Interfaces;
 using MeLi.UrlShortener.Infrastructure.Configuration;
 using MeLi.UrlShortener.Infrastructure.Persistence;
+using MeLi.UrlShortener.Application.Config;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -13,15 +14,15 @@ var mongoDbSettings = builder.Configuration.GetSection(MongoDbSettings.SectionNa
 mongoDbSettings?.Validate();
 
 // Add services to the container.
-builder.Services.Configure<MongoDbSettings>(
-    builder.Configuration.GetSection("MongoDB"));
+builder.Services.Configure<MongoDbSettings>(builder.Configuration.GetSection("MongoDB"));
+builder.Services.Configure<GeneralConfig>(builder.Configuration.GetSection("GeneralConfig"));
 
 // MongoDB
 builder.Services.AddSingleton<IMongoDbContext, MongoDbContext>();
-builder.Services.AddSingleton<IUrlRepository, MongoUrlRepository>();
+builder.Services.AddScoped<IUrlRepository, MongoUrlRepository>();
 
-builder.Services.AddSingleton<IShortCodeGenerator, ShortCodeGenerator>();
-builder.Services.AddSingleton<IUrlValidator, UrlValidator>();
+builder.Services.AddScoped<IShortCodeGenerator, ShortCodeGenerator>();
+builder.Services.AddScoped<IUrlValidator, UrlValidator>();
 builder.Services.AddScoped<IUrlService, UrlService>();
 
 builder.Services.AddControllers();
@@ -41,6 +42,9 @@ builder.Services.AddCors(options =>
 });
 
 var app = builder.Build();
+
+var context = app.Services.GetRequiredService<IMongoDbContext>();
+context.CreateIndexes();
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())

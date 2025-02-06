@@ -1,15 +1,18 @@
 ﻿using MeLi.UrlShortener.Domain.ValueObjects;
+using System.ComponentModel.DataAnnotations;
 
 namespace MeLi.UrlShortener.Domain.Entities
 {
     public class UrlEntity
     {
+        [Key]
         public string Id { get; private set; }
-        private string LongUrlString { get; set; }
-        public Url LongUrl => Url.Create(LongUrlString);
 
-        private string ShortCodeString { get; set; }
-        public ShortCode ShortCode => ShortCode.Create(ShortCodeString);
+        private string _longUrlString;
+        public Url LongUrl => Url.Create(_longUrlString);
+
+        private string _shortCodeString;
+        public ShortCode ShortCode => ShortCode.Create(_shortCodeString);
 
         public DateTime CreatedAt { get; private set; }
         public DateTime? LastAccessedAt { get; private set; }
@@ -17,8 +20,8 @@ namespace MeLi.UrlShortener.Domain.Entities
         public bool IsActive { get; private set; }
         public string? CreatedBy { get; private set; }
 
-        private DateTime? ExpirationDateValue { get; set; }
-        public ExpirationDate ExpiresAt => ExpirationDate.Create(ExpirationDateValue);
+        private DateTime? _expirationDateValue;
+        public ExpirationDate ExpiresAt => ExpirationDate.Create(_expirationDateValue);
 
         protected UrlEntity() { }
 
@@ -35,13 +38,13 @@ namespace MeLi.UrlShortener.Domain.Entities
             return new UrlEntity
             {
                 Id = Guid.NewGuid().ToString(),
-                LongUrlString = url.Value,
-                ShortCodeString = code.Value,
+                _longUrlString = url.Value,
+                _shortCodeString = code.Value,
                 CreatedAt = DateTime.UtcNow,
                 AccessCount = 0,
                 IsActive = true,
                 CreatedBy = createdBy,
-                ExpirationDateValue = expiration.Value
+                _expirationDateValue = expiration.Value
             };
         }
 
@@ -61,7 +64,7 @@ namespace MeLi.UrlShortener.Domain.Entities
 
         public void UpdateExpirationDate(DateTime newExpirationDate)
         {
-            ExpirationDateValue = ExpirationDate.Create(newExpirationDate).Value;
+            _expirationDateValue = newExpirationDate;
         }
 
         public bool IsExpired() => ExpiresAt.IsExpired();
@@ -70,7 +73,7 @@ namespace MeLi.UrlShortener.Domain.Entities
 
         public string GetFullShortUrl(string baseUrl = "https://me.li")
         {
-            return $"{baseUrl.TrimEnd('/')}/{ShortCodeString}";
+            return $"{baseUrl.TrimEnd('/')}/{ShortCode}";
         }
     }
 }

@@ -12,7 +12,7 @@ namespace MeLi.UrlShortener.Api.Controllers
 
         public UrlController(IUrlService urlService)
         {
-            _urlService = urlService;
+            _urlService = urlService ?? throw new ArgumentNullException(nameof(urlService));
         }
 
         [HttpPost]

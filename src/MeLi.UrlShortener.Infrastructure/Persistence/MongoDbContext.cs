@@ -9,6 +9,8 @@ namespace MeLi.UrlShortener.Infrastructure.Persistence
     public interface IMongoDbContext
     {
         IMongoCollection<UrlEntity> Urls { get; }
+
+        void CreateIndexes();
     }
 
     public class MongoDbContext : IMongoDbContext
@@ -16,21 +18,19 @@ namespace MeLi.UrlShortener.Infrastructure.Persistence
         private readonly IMongoDatabase _database;
         private readonly MongoDbSettings _config;
 
-        public MongoDbContext(IOptionsSnapshot<MongoDbSettings> settings)
+        public MongoDbContext(IOptions<MongoDbSettings> settings)
         {
             MongoDbMapping.Configure();
 
             var client = new MongoClient(settings.Value.ConnectionString);
             _database = client.GetDatabase(settings.Value.DatabaseName);
             _config = settings?.Value ?? throw new ArgumentNullException(nameof(settings));
-
-            CreateIndexes();
         }
 
         public IMongoCollection<UrlEntity> Urls =>
             _database.GetCollection<UrlEntity>(_config.CollectionName);
 
-        private void CreateIndexes()
+        public void CreateIndexes()
         {
             var indexKeysDefinition = Builders<UrlEntity>.IndexKeys
                 .Ascending("shortCode");
