@@ -5,6 +5,8 @@ using MeLi.UrlShortener.Application.Interfaces;
 using MeLi.UrlShortener.Infrastructure.Configuration;
 using MeLi.UrlShortener.Infrastructure.Persistence;
 using MeLi.UrlShortener.Application.Config;
+using MeLi.UrlShortener.Application.Cache;
+using MeLi.UrlShortener.Infrastructure.Cache;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -12,6 +14,10 @@ var builder = WebApplication.CreateBuilder(args);
 var mongoDbSettings = builder.Configuration.GetSection(MongoDbSettings.SectionName)
     .Get<MongoDbSettings>();
 mongoDbSettings?.Validate();
+
+var redisSettings = builder.Configuration.GetSection(RedisSettings.SectionName)
+    .Get<RedisSettings>();
+redisSettings?.Validate();
 
 // Add services to the container.
 builder.Services.Configure<MongoDbSettings>(builder.Configuration.GetSection("MongoDB"));
@@ -21,6 +27,11 @@ builder.Services.Configure<GeneralConfig>(builder.Configuration.GetSection("Gene
 builder.Services.AddSingleton<IMongoDbContext, MongoDbContext>();
 builder.Services.AddScoped<IUrlRepository, MongoUrlRepository>();
 
+// Redis
+builder.Services.Configure<RedisSettings>(builder.Configuration.GetSection("Redis"));
+builder.Services.AddScoped<IUrlCache, RedisUrlCache>();
+
+//Service of Application
 builder.Services.AddScoped<IShortCodeGenerator, ShortCodeGenerator>();
 builder.Services.AddScoped<IUrlValidator, UrlValidator>();
 builder.Services.AddScoped<IUrlService, UrlService>();

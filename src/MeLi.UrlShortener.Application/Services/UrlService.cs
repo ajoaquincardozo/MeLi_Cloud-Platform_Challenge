@@ -1,4 +1,5 @@
-﻿using MeLi.UrlShortener.Application.Config;
+﻿using MeLi.UrlShortener.Application.Cache;
+using MeLi.UrlShortener.Application.Config;
 using MeLi.UrlShortener.Application.DTOs;
 using MeLi.UrlShortener.Application.Interfaces;
 using MeLi.UrlShortener.Domain.Entities;
@@ -12,17 +13,20 @@ namespace MeLi.UrlShortener.Application.Services
         private readonly IUrlRepository _urlRepository;
         private readonly IShortCodeGenerator _codeGenerator;
         private readonly IUrlValidator _urlValidator;
+        private readonly IUrlCache _urlCache;
         private readonly GeneralConfig _generalConfig;
 
         public UrlService(
             IUrlRepository urlRepository,
             IShortCodeGenerator codeGenerator,
             IUrlValidator urlValidator,
+            IUrlCache urlCache,
             IOptions<GeneralConfig> generalConfig)
         {
             _urlRepository = urlRepository ?? throw new ArgumentNullException(nameof(urlRepository));
             _codeGenerator = codeGenerator ?? throw new ArgumentNullException(nameof(codeGenerator));
             _urlValidator = urlValidator ?? throw new ArgumentNullException(nameof(urlValidator));
+            _urlCache = urlCache ?? throw new ArgumentNullException(nameof(urlCache));
             _generalConfig = generalConfig?.Value ?? throw new ArgumentNullException(nameof(generalConfig));
         }
 
@@ -50,15 +54,31 @@ namespace MeLi.UrlShortener.Application.Services
 
         public async Task<string> GetLongUrlAsync(string shortCode)
         {
+            // Try get from cache first
+            var cachedUrl = await _urlCache.GetLongUrlAsync(shortCode);
+            if (!string.IsNullOrEmpty(cachedUrl))
+            {
+                // Asynchronously update access count without waiting
+                _ = _urlRepository.IncrementAccessCountAsync(shortCode);
+                return cachedUrl;
+            }
+
+            // If not in cache, get from repository
             var urlEntity = await _urlRepository.GetByShortCodeAsync(shortCode)
                 ?? throw new KeyNotFoundException("Short URL not found");
 
+            // Cache the result for future requests
+            await _urlCache.SetUrlAsync(shortCode, urlEntity.LongUrl.Value);
+
+            // Update access count
             await _urlRepository.IncrementAccessCountAsync(shortCode);
+
             return urlEntity.LongUrl.Value;
         }
 
         public async Task<bool> DeleteUrlAsync(string shortCode)
         {
+            await _urlCache.DeleteLongUrlAsync(shortCode);
             return await _urlRepository.DeleteAsync(shortCode);
         }
 

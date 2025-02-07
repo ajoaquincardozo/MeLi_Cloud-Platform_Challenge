@@ -4,7 +4,6 @@ using MeLi.UrlShortener.Domain.Entities;
 using MeLi.UrlShortener.Domain.Interfaces;
 using MeLi.UrlShortener.Infrastructure.Configuration;
 
-// Implementación actualizada del repositorio
 namespace MeLi.UrlShortener.Infrastructure.Persistence
 {
     public class MongoUrlRepository : IUrlRepository
@@ -26,15 +25,16 @@ namespace MeLi.UrlShortener.Infrastructure.Persistence
 
         public async Task<UrlEntity?> GetByShortCodeAsync(string shortCode)
         {
-            var filter = Builders<UrlEntity>.Filter.Eq("shortCode", shortCode);
+            var filter = Builders<UrlEntity>.Filter.Eq("shortCode", shortCode)
+                & Builders<UrlEntity>.Filter.Eq(x => x.IsActive, true);
 
-            return await _urlCollection.Find(filter)
-                                     .FirstOrDefaultAsync();
+            return await _urlCollection.Find(filter).FirstOrDefaultAsync();
         }
 
         public async Task<bool> ExistsAsync(string shortCode)
         {
-            var filter = Builders<UrlEntity>.Filter.Eq("shortCode", shortCode);
+            var filter = Builders<UrlEntity>.Filter.Eq("shortCode", shortCode)
+                & Builders<UrlEntity>.Filter.Eq(x => x.IsActive, true);
 
             return await _urlCollection.Find(filter)
                                      .AnyAsync();
@@ -42,11 +42,11 @@ namespace MeLi.UrlShortener.Infrastructure.Persistence
 
         public async Task<bool> DeleteAsync(string shortCode)
         {
-            var update = Builders<UrlEntity>.Update.Set(x => x.IsActive, false);
-            var result = await _urlCollection.UpdateOneAsync(
-                x => x.ShortCode == shortCode && x.IsActive,
-                update);
+            var filter = Builders<UrlEntity>.Filter.Eq("shortCode", shortCode)
+                & Builders<UrlEntity>.Filter.Eq(x => x.IsActive, true);
 
+            var update = Builders<UrlEntity>.Update.Set(x => x.IsActive, false);
+            var result = await _urlCollection.UpdateOneAsync(filter,update);
             return result.ModifiedCount > 0;
         }
 
@@ -56,18 +56,18 @@ namespace MeLi.UrlShortener.Infrastructure.Persistence
                 .Inc(x => x.AccessCount, 1)
                 .Set(x => x.LastAccessedAt, DateTime.UtcNow);
 
-            var filterByShortCode = Builders<UrlEntity>.Filter.Eq("shortCode", shortCode);
-            var filterIsActive = Builders<UrlEntity>.Filter.Eq(x => x.IsActive, true);
+            var filter = Builders<UrlEntity>.Filter.Eq("shortCode", shortCode)
+                & Builders<UrlEntity>.Filter.Eq(x => x.IsActive, true);
 
-            await _urlCollection.UpdateOneAsync(
-                filterByShortCode & filterIsActive,
-                update);
+            await _urlCollection.UpdateOneAsync(filter, update);
         }
 
         public async Task<UrlStatistics?> GetStatisticsAsync(string shortCode)
         {
+            var filter = Builders<UrlEntity>.Filter.Eq("shortCode", shortCode);
+
             var url = await _urlCollection
-                .Find(x => x.ShortCode == shortCode)
+                .Find(filter)
                 .Project(x => new UrlStatistics
                 {
                     TotalAccesses = x.AccessCount,
