@@ -20,21 +20,23 @@ var redisSettings = builder.Configuration.GetSection(RedisSettings.SectionName)
 redisSettings?.Validate();
 
 // Add services to the container.
-builder.Services.Configure<MongoDbSettings>(builder.Configuration.GetSection("MongoDB"));
-builder.Services.Configure<GeneralConfig>(builder.Configuration.GetSection("GeneralConfig"));
+builder.Services.Configure<MongoDbSettings>(builder.Configuration.GetSection(MongoDbSettings.SectionName));
+builder.Services.Configure<GeneralConfig>(builder.Configuration.GetSection(GeneralConfig.SectionName));
 
 // MongoDB
 builder.Services.AddSingleton<IMongoDbContext, MongoDbContext>();
 builder.Services.AddScoped<IUrlRepository, MongoUrlRepository>();
+builder.Services.AddScoped<IUrlAnalyticsRepository, MongoUrlAnalyticsRepository>();
 
 // Redis
-builder.Services.Configure<RedisSettings>(builder.Configuration.GetSection("Redis"));
-builder.Services.AddScoped<IUrlCache, RedisUrlCache>();
+builder.Services.Configure<RedisSettings>(builder.Configuration.GetSection(RedisSettings.SectionName));
+builder.Services.AddSingleton<IUrlCache, RedisUrlCache>();
 
 //Service of Application
 builder.Services.AddScoped<IShortCodeGenerator, ShortCodeGenerator>();
 builder.Services.AddScoped<IUrlValidator, UrlValidator>();
 builder.Services.AddScoped<IUrlService, UrlService>();
+builder.Services.AddScoped<IUrlAnalyticsService, UrlAnalyticsService>();
 
 builder.Services.AddControllers();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle

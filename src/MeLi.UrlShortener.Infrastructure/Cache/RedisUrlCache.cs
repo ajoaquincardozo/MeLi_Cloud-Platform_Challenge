@@ -2,6 +2,10 @@
 using Microsoft.Extensions.Options;
 using MeLi.UrlShortener.Infrastructure.Configuration;
 using MeLi.UrlShortener.Application.Cache;
+using MeLi.UrlShortener.Domain.ValueObjects;
+using System.Text.Json;
+using MeLi.UrlShortener.Domain.Entities;
+using MongoDB.Driver;
 
 namespace MeLi.UrlShortener.Infrastructure.Cache
 {
@@ -61,6 +65,38 @@ namespace MeLi.UrlShortener.Infrastructure.Cache
         {
             var db = _redis.GetDatabase();
             await db.KeyDeleteAsync(GetKey(shortCode));
+        }
+
+        public async Task<T> GetAsync<T>(string cacheKey)
+        {
+            try
+            {
+                var db = _redis.GetDatabase();
+                var value = await db.StringGetAsync(cacheKey);
+                return value.HasValue ? JsonSerializer.Deserialize<T>(value.ToString()) : default(T);
+            }
+            catch (Exception ex)
+            {
+                // Log error but don't throw - let the system fallback to MongoDB
+                return default(T);
+            }
+        }
+
+        public async Task SetAsync<T>(string cacheKey, T entity, TimeSpan? ttl = null)
+        {
+            try
+            {
+                var db = _redis.GetDatabase();
+                await db.StringSetAsync(
+                    cacheKey,
+                    JsonSerializer.Serialize(entity),
+                    ttl ?? TimeSpan.FromMinutes(DefaultTtlMinutes)
+                );
+            }
+            catch (Exception ex)
+            {
+                // Log error but don't throw - the system can continue without cache
+            }
         }
     }
 }

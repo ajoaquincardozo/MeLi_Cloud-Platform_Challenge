@@ -14,7 +14,7 @@ namespace MeLi.UrlShortener.Domain.Interfaces
         /// <summary>
         /// Retrieves a URL entity by its short code
         /// </summary>
-        Task<UrlEntity?> GetByShortCodeAsync(string shortCode);
+        Task<UrlEntity> GetByShortCodeAsync(string shortCode);
 
         /// <summary>
         /// Checks if a short code already exists
@@ -25,21 +25,6 @@ namespace MeLi.UrlShortener.Domain.Interfaces
         /// Soft deletes a URL by its short code
         /// </summary>
         Task<bool> DeleteAsync(string shortCode);
-
-        /// <summary>
-        /// Increments the access count for a URL
-        /// </summary>
-        Task IncrementAccessCountAsync(string shortCode);
-
-        /// <summary>
-        /// Get access statistics for a specific short code
-        /// </summary>
-        Task<UrlStatistics?> GetStatisticsAsync(string shortCode);
-
-        /// <summary>
-        /// Get list of most accessed URLs with pagination
-        /// </summary>
-        Task<(List<UrlEntity> Urls, int TotalCount)> GetMostAccessedAsync(int page, int pageSize);
     }
 
     public class UrlStatistics

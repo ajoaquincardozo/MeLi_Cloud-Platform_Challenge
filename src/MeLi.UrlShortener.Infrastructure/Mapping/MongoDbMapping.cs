@@ -50,12 +50,6 @@ namespace MeLi.UrlShortener.Infrastructure.Persistence.Mapping
                     cm.MapProperty(c => c.CreatedAt)
                         .SetElementName("createdAt");
 
-                    cm.MapProperty(c => c.LastAccessedAt)
-                        .SetElementName("lastAccessedAt");
-
-                    cm.MapProperty(c => c.AccessCount)
-                        .SetElementName("accessCount");
-
                     cm.MapProperty(c => c.IsActive)
                         .SetElementName("isActive");
 
