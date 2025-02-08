@@ -17,7 +17,7 @@ namespace MeLi.UrlShortener.Application.Interfaces
         /// <summary>
         /// Gets complete analytics for a URL
         /// </summary>
-        Task<UrlAnalytics?> GetAnalyticsAsync(string shortCode);
+        Task<UrlAnalytics> GetAnalyticsAsync(string shortCode);
 
         /// <summary>
         /// Gets daily statistics for a URL within a date range
@@ -44,8 +44,5 @@ namespace MeLi.UrlShortener.Application.Interfaces
     {
         public long TotalAccesses { get; set; }
         public DateTime? LastAccessed { get; set; }
-        public Dictionary<string, long> TopReferrers { get; set; } = new();
-        public Dictionary<string, long> TopUserAgents { get; set; } = new();
-        public Dictionary<string, long> TopCountries { get; set; } = new();
     }
 }

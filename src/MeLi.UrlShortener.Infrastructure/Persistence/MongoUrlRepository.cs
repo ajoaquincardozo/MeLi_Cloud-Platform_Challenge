@@ -2,6 +2,7 @@
 using MongoDB.Driver;
 using MeLi.UrlShortener.Domain.Interfaces;
 using MeLi.UrlShortener.Infrastructure.Configuration;
+using MeLi.UrlShortener.Domain.Entities;
 
 namespace MeLi.UrlShortener.Infrastructure.Persistence
 {

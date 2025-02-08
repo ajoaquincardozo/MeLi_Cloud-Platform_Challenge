@@ -76,30 +76,114 @@ namespace MeLi.UrlShortener.Infrastructure.Persistence
         private WriteModel<UrlAnalytics> CreateBatchUpdates(IGrouping<string, AccessRecord> group)
         {
             var shortCode = group.Key;
-            var updates = new List<UpdateDefinition<UrlAnalytics>>();
+            var date = group.First().AccessTime.Date;
 
-            foreach (var record in group)
+            // Agrupar hits por hora
+            var hitsByHour = group.GroupBy(x => x.AccessTime.Hour)
+                                .ToDictionary(x => x.Key, x => x.Count());
+
+            // Crear el filtro para el documento
+            var filter = Builders<UrlAnalytics>.Filter.And(
+                Builders<UrlAnalytics>.Filter.Eq(x => x.ShortCode, shortCode),
+                Builders<UrlAnalytics>.Filter.ElemMatch(x => x.DailyAccesses, d => d.Date == date)
+            );
+
+            // Preparar la actualización inicial
+            var update = Builders<UrlAnalytics>.Update
+                .Set(x => x.LastCalculatedAt, DateTime.UtcNow)
+                .Inc(x => x.TotalAccessCount, group.Count());
+
+            // Si el día no existe, inicializarlo con ceros
+            var initialDay = new DailyAccess
             {
-                var date = record.AccessTime.Date;
-                var hour = record.AccessTime.Hour;
-
-                updates.Add(Builders<UrlAnalytics>.Update
-                    .Inc($"DailyAccesses.$[daily].HourlyHits[{hour}]", 1)
-                    .Inc($"DailyAccesses.$[daily].TotalDayHits", 1)
-                    .Set(x => x.LastCalculatedAt, DateTime.UtcNow));
-            }
-
-            var arrayFilters = new[]
-            {
-                new BsonDocumentArrayFilterDefinition<BsonDocument>(
-                    new BsonDocument("daily.Date", group.First().AccessTime.Date))
+                Date = date,
+                HourlyHits = new int[24],
+                TotalDayHits = 0
             };
 
+            // Actualizar los hits para cada hora
+            foreach (var hourHits in hitsByHour)
+            {
+                var hour = hourHits.Key;
+                var hits = hourHits.Value;
+                initialDay.HourlyHits[hour] = hits;
+                initialDay.TotalDayHits += hits;
+            }
+
+            // Construir la actualización final usando una expresión condicional
+            var finalUpdate = Builders<UrlAnalytics>.Update.Pipeline(new[]
+{
+    new BsonDocument("$addFields", new BsonDocument
+    {
+        {
+            "dailyAccesses", new BsonDocument("$cond", new BsonDocument
+            {
+                { "if", new BsonDocument("$ne", new BsonArray { "$dailyAccesses", BsonNull.Value }) }, // Verifica si $dailyAccesses no es null
+                {
+                    "then", new BsonDocument("$cond", new BsonDocument
+                    {
+                        {
+                            "if", new BsonDocument("$in", new BsonArray
+                            {
+                                date,
+                                new BsonDocument("$map", new BsonDocument // Corrección: $map dentro de $in
+                                {
+                                    { "input", "$dailyAccesses" },
+                                    { "as", "item" },
+                                    { "in", "$$item.date" } // Extrae el campo 'date' de cada objeto
+                                })
+                            })
+                        },
+                        {
+                            "then", new BsonDocument("$map", new BsonDocument
+                            {
+                                { "input", "$dailyAccesses" },
+                                { "as", "day" },
+                                {
+                                    "in", new BsonDocument("$cond", new BsonDocument
+                                    {
+                                        { "if", new BsonDocument("$eq", new BsonArray { "$$day.date", date }) },
+                                        {
+                                            "then", new BsonDocument
+                                            {
+                                                { "date", "$$day.date" },
+                                                { "hourlyHits", new BsonArray(initialDay.HourlyHits) },
+                                                { "totalDayHits", initialDay.TotalDayHits }
+                                            }
+                                        },
+                                        { "else", "$$day" }
+                                    })
+                                }
+                            })
+                        },
+                        {
+                            "else", new BsonDocument("$concatArrays", new BsonArray
+                            {
+                                "$dailyAccesses",
+                                new BsonArray
+                                {
+                                    new BsonDocument
+                                    {
+                                        { "date", date },
+                                        { "hourlyHits", new BsonArray(initialDay.HourlyHits) },
+                                        { "totalDayHits", initialDay.TotalDayHits }
+                                    }
+                                }
+                            })
+                        }
+                    })
+                },
+                { "else", new BsonArray() } // Si $dailyAccesses es null, inicializarlo como un array vacío
+            })
+        }
+    })
+});
+
+            var query = finalUpdate.ToString();
             return new UpdateOneModel<UrlAnalytics>(
                 Builders<UrlAnalytics>.Filter.Eq(x => x.ShortCode, shortCode),
-                Builders<UrlAnalytics>.Update.Combine(updates))
+                finalUpdate)
             {
-                ArrayFilters = arrayFilters,
                 IsUpsert = true
             };
         }

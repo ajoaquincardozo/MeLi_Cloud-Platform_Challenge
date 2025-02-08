@@ -7,6 +7,7 @@ using MeLi.UrlShortener.Infrastructure.Persistence;
 using MeLi.UrlShortener.Application.Config;
 using MeLi.UrlShortener.Application.Cache;
 using MeLi.UrlShortener.Infrastructure.Cache;
+using MeLi.UrlShortener.Infrastructure.Persistence.Mapping;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -26,7 +27,7 @@ builder.Services.Configure<GeneralConfig>(builder.Configuration.GetSection(Gener
 // MongoDB
 builder.Services.AddSingleton<IMongoDbContext, MongoDbContext>();
 builder.Services.AddScoped<IUrlRepository, MongoUrlRepository>();
-builder.Services.AddScoped<IUrlAnalyticsRepository, MongoUrlAnalyticsRepository>();
+builder.Services.AddSingleton<IUrlAnalyticsRepository, MongoUrlAnalyticsRepository>();
 
 // Redis
 builder.Services.Configure<RedisSettings>(builder.Configuration.GetSection(RedisSettings.SectionName));
@@ -55,9 +56,8 @@ builder.Services.AddCors(options =>
 });
 
 var app = builder.Build();
-
-var context = app.Services.GetRequiredService<IMongoDbContext>();
-context.CreateIndexes();
+MongoDbMapping.Configure();
+var logger = app.Services.GetRequiredService<ILogger<Program>>();
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
@@ -72,4 +72,6 @@ app.UseCors();
 app.UseAuthorization();
 app.MapControllers();
 
+var context = app.Services.GetRequiredService<IMongoDbContext>();
+context.CreateIndexes();
 app.Run();

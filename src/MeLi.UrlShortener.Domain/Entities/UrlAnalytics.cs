@@ -1,8 +1,11 @@
-﻿namespace MeLi.UrlShortener.Domain.Entities
+﻿using System.ComponentModel.DataAnnotations;
+
+namespace MeLi.UrlShortener.Domain.Entities
 {
     public class UrlAnalytics
     {
-        public string Id { get; private set; }
+        [Key]
+        public string Id { get; protected set; } = default!;
         public string ShortCode { get; private set; }
         public List<DailyAccess> DailyAccesses { get; private set; }
         public DateTime LastCalculatedAt { get; private set; }

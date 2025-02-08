@@ -23,8 +23,6 @@ namespace MeLi.UrlShortener.Infrastructure.Persistence
 
         public MongoDbContext(IOptions<MongoDbSettings> settings)
         {
-            MongoDbMapping.Configure();
-
             var client = new MongoClient(settings.Value.ConnectionString);
             _database = client.GetDatabase(settings.Value.DatabaseName);
             _config = settings?.Value ?? throw new ArgumentNullException(nameof(settings));

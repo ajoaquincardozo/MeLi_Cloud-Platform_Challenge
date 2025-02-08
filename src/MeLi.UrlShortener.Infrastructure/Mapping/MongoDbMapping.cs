@@ -12,11 +12,6 @@ namespace MeLi.UrlShortener.Infrastructure.Persistence.Mapping
         public static void Configure()
         {
             // Convenciones globales
-            //BsonDefaults.GuidRepresentationMode = GuidRepresentationMode.V3;
-            //BsonSerializer.RegisterSerializer(new GuidSerializer(GuidRepresentation.Standard));
-            //BsonSerializer.RegisterSerializer(new DecimalSerializer(BsonType.Decimal128));
-            //BsonSerializer.RegisterSerializer(new NullableSerializer<decimal>(new DecimalSerializer(BsonType.Decimal128)));
-
             var pack = new ConventionPack
             {
                 new IgnoreExtraElementsConvention(true),
@@ -60,6 +55,51 @@ namespace MeLi.UrlShortener.Infrastructure.Persistence.Mapping
                     cm.UnmapProperty(c => c.LongUrl);
                     cm.UnmapProperty(c => c.ShortCode);
                     cm.UnmapProperty(c => c.ExpiresAt);
+                });
+            }
+
+            // Configuración de mapeo para UrlAnalytics
+            if (!BsonClassMap.IsClassMapRegistered(typeof(UrlAnalytics)))
+            {
+                BsonClassMap.RegisterClassMap<UrlAnalytics>(cm =>
+                {
+                    // Mapeo del Id
+                    cm.MapIdMember(c => c.Id)
+                        .SetSerializer(new StringSerializer(BsonType.String))
+                        .SetIdGenerator(StringObjectIdGenerator.Instance);
+
+                    // Propiedades explícitas con nombres de elementos
+                    cm.MapProperty(c => c.ShortCode)
+                        .SetElementName("shortCode");
+
+                    cm.MapProperty(c => c.DailyAccesses)
+                        .SetElementName("dailyAccesses");
+
+                    cm.MapProperty(c => c.LastCalculatedAt)
+                        .SetElementName("lastCalculatedAt");
+
+                    cm.MapProperty(c => c.TotalAccessCount)
+                        .SetElementName("totalAccessCount");
+
+                    cm.SetIgnoreExtraElements(true);
+                });
+            }
+
+            // Configuración de mapeo para DailyAccess
+            if (!BsonClassMap.IsClassMapRegistered(typeof(DailyAccess)))
+            {
+                BsonClassMap.RegisterClassMap<DailyAccess>(cm =>
+                {
+                    cm.MapProperty(c => c.Date)
+                        .SetElementName("date");
+
+                    cm.MapProperty(c => c.HourlyHits)
+                        .SetElementName("hourlyHits");
+
+                    cm.MapProperty(c => c.TotalDayHits)
+                        .SetElementName("totalDayHits");
+
+                    cm.SetIgnoreExtraElements(true);
                 });
             }
         }
