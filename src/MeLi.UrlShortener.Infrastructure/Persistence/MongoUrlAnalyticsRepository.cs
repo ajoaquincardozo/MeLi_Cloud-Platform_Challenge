@@ -37,7 +37,7 @@ namespace MeLi.UrlShortener.Infrastructure.Persistence
             _pendingWrites.Enqueue(new AccessRecord(shortCode, accessTime));
 
             // Fire-and-forget immediate update of total count
-            _ = IncrementTotalCountAsync(shortCode);
+            //_ = IncrementTotalCountAsync(shortCode);
         }
 
         private async Task ProcessBatchWritesAsync()
@@ -52,140 +52,94 @@ namespace MeLi.UrlShortener.Infrastructure.Persistence
                     batch.Add(record);
                 }
 
-                if (batch.Any())
+                if (!batch.Any()) return;
+
+                // Procesamos por shortCode
+                foreach (var group in batch.GroupBy(x => x.ShortCode))
                 {
-                    var operations = new List<WriteModel<UrlAnalytics>>();
-                    var groupedRecords = batch.GroupBy(x => x.ShortCode);
-
-                    foreach (var group in groupedRecords)
-                    {
-                        var shortCode = group.Key;
-                        var updates = CreateBatchUpdates(group);
-                        operations.Add(updates);
-                    }
-
-                    await _collection.BulkWriteAsync(operations);
+                    var shortCode = group.Key;
+                    await ProcessGroupAsync(shortCode, group);
                 }
             }
             catch (Exception ex)
             {
-                // Log error but don't throw - we don't want to break the application for analytics
+                // Log error but don't throw
             }
         }
 
-        private WriteModel<UrlAnalytics> CreateBatchUpdates(IGrouping<string, AccessRecord> group)
+        private async Task ProcessGroupAsync(string shortCode, IGrouping<string, AccessRecord> group)
         {
-            var shortCode = group.Key;
+            // Agrupamos hits por hora
+            var hitsByHour = group.GroupBy(x => x.AccessTime.Hour)
+                                 .ToDictionary(x => x.Key, x => x.Count());
+
             var date = group.First().AccessTime.Date;
 
-            // Agrupar hits por hora
-            var hitsByHour = group.GroupBy(x => x.AccessTime.Hour)
-                                .ToDictionary(x => x.Key, x => x.Count());
+            // Buscamos el documento
+            var analytics = await _collection.Find(x => x.ShortCode == shortCode).FirstOrDefaultAsync();
 
-            // Crear el filtro para el documento
-            var filter = Builders<UrlAnalytics>.Filter.And(
-                Builders<UrlAnalytics>.Filter.Eq(x => x.ShortCode, shortCode),
-                Builders<UrlAnalytics>.Filter.ElemMatch(x => x.DailyAccesses, d => d.Date == date)
-            );
-
-            // Preparar la actualización inicial
-            var update = Builders<UrlAnalytics>.Update
-                .Set(x => x.LastCalculatedAt, DateTime.UtcNow)
-                .Inc(x => x.TotalAccessCount, group.Count());
-
-            // Si el día no existe, inicializarlo con ceros
-            var initialDay = new DailyAccess
+            if (analytics == null)
             {
-                Date = date,
-                HourlyHits = new int[24],
-                TotalDayHits = 0
-            };
-
-            // Actualizar los hits para cada hora
-            foreach (var hourHits in hitsByHour)
-            {
-                var hour = hourHits.Key;
-                var hits = hourHits.Value;
-                initialDay.HourlyHits[hour] = hits;
-                initialDay.TotalDayHits += hits;
+                // Crear nuevo documento
+                analytics = new UrlAnalytics
+                (
+                    shortCode: shortCode,
+                    dailyAccesses: new List<DailyAccess>
+                    {
+                        CreateNewDailyAccess(date, hitsByHour)
+                    },
+                    lastCalculatedAt: DateTime.UtcNow,
+                    totalAccessCount: group.Count()
+                );
+                await _collection.InsertOneAsync(analytics);
+                return;
             }
 
-            // Construir la actualización final usando una expresión condicional
-            var finalUpdate = Builders<UrlAnalytics>.Update.Pipeline(new[]
-{
-    new BsonDocument("$addFields", new BsonDocument
-    {
-        {
-            "dailyAccesses", new BsonDocument("$cond", new BsonDocument
-            {
-                { "if", new BsonDocument("$ne", new BsonArray { "$dailyAccesses", BsonNull.Value }) }, // Verifica si $dailyAccesses no es null
-                {
-                    "then", new BsonDocument("$cond", new BsonDocument
-                    {
-                        {
-                            "if", new BsonDocument("$in", new BsonArray
-                            {
-                                date,
-                                new BsonDocument("$map", new BsonDocument // Corrección: $map dentro de $in
-                                {
-                                    { "input", "$dailyAccesses" },
-                                    { "as", "item" },
-                                    { "in", "$$item.date" } // Extrae el campo 'date' de cada objeto
-                                })
-                            })
-                        },
-                        {
-                            "then", new BsonDocument("$map", new BsonDocument
-                            {
-                                { "input", "$dailyAccesses" },
-                                { "as", "day" },
-                                {
-                                    "in", new BsonDocument("$cond", new BsonDocument
-                                    {
-                                        { "if", new BsonDocument("$eq", new BsonArray { "$$day.date", date }) },
-                                        {
-                                            "then", new BsonDocument
-                                            {
-                                                { "date", "$$day.date" },
-                                                { "hourlyHits", new BsonArray(initialDay.HourlyHits) },
-                                                { "totalDayHits", initialDay.TotalDayHits }
-                                            }
-                                        },
-                                        { "else", "$$day" }
-                                    })
-                                }
-                            })
-                        },
-                        {
-                            "else", new BsonDocument("$concatArrays", new BsonArray
-                            {
-                                "$dailyAccesses",
-                                new BsonArray
-                                {
-                                    new BsonDocument
-                                    {
-                                        { "date", date },
-                                        { "hourlyHits", new BsonArray(initialDay.HourlyHits) },
-                                        { "totalDayHits", initialDay.TotalDayHits }
-                                    }
-                                }
-                            })
-                        }
-                    })
-                },
-                { "else", new BsonArray() } // Si $dailyAccesses es null, inicializarlo como un array vacío
-            })
-        }
-    })
-});
+            // Actualizar documento existente
+            var dailyAccess = analytics.DailyAccesses.FirstOrDefault(x => x.Date.Date == date);
 
-            var query = finalUpdate.ToString();
-            return new UpdateOneModel<UrlAnalytics>(
-                Builders<UrlAnalytics>.Filter.Eq(x => x.ShortCode, shortCode),
-                finalUpdate)
+            var update = dailyAccess == null
+                ? Builders<UrlAnalytics>.Update
+                    .Push(x => x.DailyAccesses, CreateNewDailyAccess(date, hitsByHour))
+                : CreateUpdateForExistingDay(date, hitsByHour);
+
+            update = update.Set(x => x.LastCalculatedAt, DateTime.UtcNow)
+                          .Inc(x => x.TotalAccessCount, group.Count());
+
+            await _collection.UpdateOneAsync(x => x.Id == analytics.Id, update);
+        }
+
+        private DailyAccess CreateNewDailyAccess(DateTime date, Dictionary<int, int> hitsByHour)
+        {
+            var hourlyHits = new int[24];
+            var totalHits = 0;
+
+            foreach (var (hour, hits) in hitsByHour)
             {
-                IsUpsert = true
+                hourlyHits[hour] = hits;
+                totalHits += hits;
+            }
+
+            return new DailyAccess
+            {
+                Date = date,
+                HourlyHits = hourlyHits,
+                TotalDayHits = totalHits
             };
+        }
+
+        private UpdateDefinition<UrlAnalytics> CreateUpdateForExistingDay(DateTime date, Dictionary<int, int> hitsByHour)
+        {
+            var update = Builders<UrlAnalytics>.Update;
+            var updates = new List<UpdateDefinition<UrlAnalytics>>();
+
+            foreach (var (hour, hits) in hitsByHour)
+            {
+                updates.Add(update.Inc($"DailyAccesses.$[day].HourlyHits.{hour}", hits));
+            }
+            updates.Add(update.Inc($"DailyAccesses.$[day].TotalDayHits", hitsByHour.Values.Sum()));
+
+            return update.Combine(updates);
         }
 
         private async Task IncrementTotalCountAsync(string shortCode)

@@ -10,6 +10,16 @@ namespace MeLi.UrlShortener.Domain.Entities
         public List<DailyAccess> DailyAccesses { get; private set; }
         public DateTime LastCalculatedAt { get; private set; }
         public long TotalAccessCount { get; private set; } // Counter precalculado
+
+        public UrlAnalytics() { }
+
+        public UrlAnalytics(string shortCode, List<DailyAccess> dailyAccesses, DateTime lastCalculatedAt, long totalAccessCount) 
+        {
+            ShortCode = shortCode;
+            DailyAccesses = dailyAccesses;
+            LastCalculatedAt = lastCalculatedAt;
+            TotalAccessCount = totalAccessCount;
+        }
     }
 
     public class DailyAccess
