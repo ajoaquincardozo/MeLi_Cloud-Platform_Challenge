@@ -2,10 +2,9 @@
 using Microsoft.Extensions.Options;
 using MeLi.UrlShortener.Infrastructure.Configuration;
 using MeLi.UrlShortener.Application.Cache;
-using MeLi.UrlShortener.Domain.ValueObjects;
 using System.Text.Json;
 using MeLi.UrlShortener.Domain.Entities;
-using MongoDB.Driver;
+using MeLi.UrlShortener.Infrastructure.Cache.Converters;
 
 namespace MeLi.UrlShortener.Infrastructure.Cache
 {
@@ -13,6 +12,7 @@ namespace MeLi.UrlShortener.Infrastructure.Cache
     {
         private readonly IConnectionMultiplexer _redis;
         private const int DefaultTtlMinutes = 10;
+        private readonly JsonSerializerOptions _jsonOptions;
 
         public RedisUrlCache(IOptions<RedisSettings> settings)
         {
@@ -20,6 +20,12 @@ namespace MeLi.UrlShortener.Infrastructure.Cache
                 throw new ArgumentNullException(nameof(settings));
 
             _redis = ConnectionMultiplexer.Connect(settings.Value.ConnectionString);
+            _jsonOptions = new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = false,
+                PropertyNamingPolicy = null
+            };
+            _jsonOptions.Converters.Add(new PrivateSetterJsonConverter<UrlAnalytics>());
         }
 
         public async Task<string?> GetLongUrlAsync(string shortCode)
@@ -73,7 +79,7 @@ namespace MeLi.UrlShortener.Infrastructure.Cache
             {
                 var db = _redis.GetDatabase();
                 var value = await db.StringGetAsync(cacheKey);
-                return value.HasValue ? JsonSerializer.Deserialize<T>(value.ToString()) : default(T);
+                return value.HasValue ? JsonSerializer.Deserialize<T>(value.ToString(), _jsonOptions) : default(T);
             }
             catch (Exception ex)
             {
@@ -89,7 +95,7 @@ namespace MeLi.UrlShortener.Infrastructure.Cache
                 var db = _redis.GetDatabase();
                 await db.StringSetAsync(
                     cacheKey,
-                    JsonSerializer.Serialize(entity),
+                    JsonSerializer.Serialize(entity, _jsonOptions),
                     ttl ?? TimeSpan.FromMinutes(DefaultTtlMinutes)
                 );
             }
