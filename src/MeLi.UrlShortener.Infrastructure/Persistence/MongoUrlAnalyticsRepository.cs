@@ -69,13 +69,10 @@ namespace MeLi.UrlShortener.Infrastructure.Persistence
 
         private async Task ProcessGroupAsync(string shortCode, IGrouping<string, AccessRecord> group)
         {
-            // Agrupamos hits por hora
-            var hitsByHour = group.GroupBy(x => x.AccessTime.Hour)
-                                 .ToDictionary(x => x.Key, x => x.Count());
-
             var date = group.First().AccessTime.Date;
+            var hitsByHour = group.GroupBy(x => x.AccessTime.Hour)
+                     .ToDictionary(x => x.Key, x => x.Count());
 
-            // Buscamos el documento
             var analytics = await _collection.Find(x => x.ShortCode == shortCode).FirstOrDefaultAsync();
 
             if (analytics == null)
@@ -95,16 +92,28 @@ namespace MeLi.UrlShortener.Infrastructure.Persistence
                 return;
             }
 
-            // Actualizar documento existente
-            var dailyAccess = analytics.DailyAccesses.FirstOrDefault(x => x.Date.Date == date);
+            // Encontrar o crear el DailyAccess para la fecha
+            var dailyAccessIndex = analytics.DailyAccesses.FindIndex(x => x.Date.Date == date);
+            if (dailyAccessIndex == -1)
+            {
+                analytics.DailyAccesses.Add(CreateNewDailyAccess(date, hitsByHour));
+            }
+            else
+            {
+                // Actualizar el existente
+                var existingDaily = analytics.DailyAccesses[dailyAccessIndex];
+                foreach (var (hour, hits) in hitsByHour)
+                {
+                    existingDaily.HourlyHits[hour] += hits;
+                    existingDaily.TotalDayHits += hits;
+                }
+            }
 
-            var update = dailyAccess == null
-                ? Builders<UrlAnalytics>.Update
-                    .Push(x => x.DailyAccesses, CreateNewDailyAccess(date, hitsByHour))
-                : CreateUpdateForExistingDay(date, hitsByHour);
-
-            update = update.Set(x => x.LastCalculatedAt, DateTime.UtcNow)
-                          .Inc(x => x.TotalAccessCount, group.Count());
+            // Actualizar todo el documento
+            var update = Builders<UrlAnalytics>.Update
+                .Set(x => x.DailyAccesses, analytics.DailyAccesses)
+                .Set(x => x.LastCalculatedAt, DateTime.UtcNow)
+                .Inc(x => x.TotalAccessCount, group.Count());
 
             await _collection.UpdateOneAsync(x => x.Id == analytics.Id, update);
         }
@@ -126,20 +135,6 @@ namespace MeLi.UrlShortener.Infrastructure.Persistence
                 HourlyHits = hourlyHits,
                 TotalDayHits = totalHits
             };
-        }
-
-        private UpdateDefinition<UrlAnalytics> CreateUpdateForExistingDay(DateTime date, Dictionary<int, int> hitsByHour)
-        {
-            var update = Builders<UrlAnalytics>.Update;
-            var updates = new List<UpdateDefinition<UrlAnalytics>>();
-
-            foreach (var (hour, hits) in hitsByHour)
-            {
-                updates.Add(update.Inc($"DailyAccesses.$[day].HourlyHits.{hour}", hits));
-            }
-            updates.Add(update.Inc($"DailyAccesses.$[day].TotalDayHits", hitsByHour.Values.Sum()));
-
-            return update.Combine(updates);
         }
 
         private async Task IncrementTotalCountAsync(string shortCode)
