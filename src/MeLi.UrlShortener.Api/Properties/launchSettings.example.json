@@ -16,7 +16,13 @@
       "launchUrl": "swagger",
       "applicationUrl": "http://localhost:5173",
       "environmentVariables": {
-        "ASPNETCORE_ENVIRONMENT": "Development"
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "MONGODB_CONNECTION_STRING": "mongodb://localhost:27017",
+        "MONGODB_URL_DATABASE": "urlshortener",
+        "MONGODB_URLS_COLLECTION_NAME": "urls",
+        "MONGODB_URL_ANALYTICS_COLLECTION_NAME": "urlAnalytics",
+        "GENERAL_CONFIG_BASE_URL": "https://localhost:7237",
+        "REDIS_CONNECTION_STRING": "localhost:6380"
       }
     },
     "https": {
@@ -26,7 +32,13 @@
       "launchUrl": "swagger",
       "applicationUrl": "https://localhost:7237;http://localhost:5173",
       "environmentVariables": {
-        "ASPNETCORE_ENVIRONMENT": "Development"
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "MONGODB_CONNECTION_STRING": "mongodb://localhost:27017",
+        "MONGODB_URL_DATABASE": "urlshortener",
+        "MONGODB_URLS_COLLECTION_NAME": "urls",
+        "MONGODB_URL_ANALYTICS_COLLECTION_NAME": "urlAnalytics",
+        "GENERAL_CONFIG_BASE_URL": "https://localhost:7237",
+        "REDIS_CONNECTION_STRING": "localhost:6380"
       }
     },
     "IIS Express": {

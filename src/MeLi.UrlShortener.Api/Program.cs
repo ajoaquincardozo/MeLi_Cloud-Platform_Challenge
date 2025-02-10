@@ -10,19 +10,24 @@ using MeLi.UrlShortener.Infrastructure.Cache;
 using MeLi.UrlShortener.Infrastructure.Persistence.Mapping;
 
 var builder = WebApplication.CreateBuilder(args);
+var config = (IConfigurationRoot)builder.Configuration
+    .SetBasePath(builder.Environment.ContentRootPath)
+    .AddJsonFile("appsettings.json", optional: false, reloadOnChange: false)
+    .AddEnvironmentVariables()
+    .BuildAndReplacePlaceholders();
 
 // Configuration
-var mongoDbSettings = builder.Configuration.GetSection(MongoDbSettings.SectionName)
+var mongoDbSettings = config.GetSection(MongoDbSettings.SectionName)
     .Get<MongoDbSettings>();
 mongoDbSettings?.Validate();
 
-var redisSettings = builder.Configuration.GetSection(RedisSettings.SectionName)
+var redisSettings = config.GetSection(RedisSettings.SectionName)
     .Get<RedisSettings>();
 redisSettings?.Validate();
 
 // Add services to the container.
-builder.Services.Configure<MongoDbSettings>(builder.Configuration.GetSection(MongoDbSettings.SectionName));
-builder.Services.Configure<GeneralConfig>(builder.Configuration.GetSection(GeneralConfig.SectionName));
+builder.Services.Configure<MongoDbSettings>(config.GetSection(MongoDbSettings.SectionName));
+builder.Services.Configure<GeneralConfig>(config.GetSection(GeneralConfig.SectionName));
 
 // MongoDB
 builder.Services.AddSingleton<IMongoDbContext, MongoDbContext>();
@@ -30,7 +35,7 @@ builder.Services.AddScoped<IUrlRepository, MongoUrlRepository>();
 builder.Services.AddSingleton<IUrlAnalyticsRepository, MongoUrlAnalyticsRepository>();
 
 // Redis
-builder.Services.Configure<RedisSettings>(builder.Configuration.GetSection(RedisSettings.SectionName));
+builder.Services.Configure<RedisSettings>(config.GetSection(RedisSettings.SectionName));
 builder.Services.AddSingleton<IUrlCache, RedisUrlCache>();
 
 //Service of Application

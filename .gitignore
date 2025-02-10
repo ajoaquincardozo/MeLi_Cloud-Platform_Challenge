@@ -133,3 +133,4 @@ $RECYCLE.BIN/
 
 _NCrunch*
 analysis_results
+/src/MeLi.UrlShortener.Api/Properties/launchSettings.json
