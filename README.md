@@ -12,6 +12,47 @@ MeLi.UrlShortener/
 │   └── MeLi.UrlShortener.Infrastructure/# Implementaciones concretas
 ```
 
+## Diagrama de arquitectura
+```mermaid
+
+
+flowchart TB
+    subgraph Cliente[Cliente]
+        Browser[Navegador Web]
+        APIClient[Cliente API]
+    end
+
+    subgraph LoadBalancer[Load Balancer]
+        ALB[Application Load Balancer]
+    end
+
+    subgraph URLShortener[Servicio de URL Shortener]
+        API[API REST]
+
+        subgraph Core[Núcleo de la Aplicación]
+            URLService[URL Service]
+            Generator[Short Code Generator]
+            Analytics[Analytics Service]
+        end
+    end
+
+    subgraph Storage[Almacenamiento]
+        MongoDB[(MongoDB)]
+        Redis[(Redis)]
+    end
+
+    Browser --> ALB
+    APIClient --> ALB
+    ALB --> API
+    API --> URLService
+    URLService --> Generator
+    URLService --> Analytics
+    URLService --> MongoDB
+    URLService --> Redis
+    Analytics --> MongoDB
+```
+
+
 ## Tecnologías Implementadas
 - **.NET Core 8.0**
 - **MongoDB** para persistencia
