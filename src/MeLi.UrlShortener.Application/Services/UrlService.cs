@@ -33,7 +33,7 @@ namespace MeLi.UrlShortener.Application.Services
             _generalConfig = generalConfig?.Value ?? throw new ArgumentNullException(nameof(generalConfig));
         }
 
-        public async Task<UrlResponseDto> CreateShortUrlAsync(CreateShortUrlRequest request)
+        public async Task<string> CreateShortUrlAsync(CreateShortUrlRequest request)
         {
             if (!_urlValidator.IsValidUrl(request.LongUrl))
                 throw new ArgumentException("Invalid URL format");
@@ -47,7 +47,7 @@ namespace MeLi.UrlShortener.Application.Services
             var urlEntity = UrlEntity.Create(request.LongUrl, shortCode);
             await _urlRepository.SaveAsync(urlEntity);
 
-            return new UrlResponseDto($"{_generalConfig.BaseUrl}/{shortCode}");
+            return shortCode;
         }
 
         public async Task<string> GetLongUrlAsync(string shortCode)
@@ -78,14 +78,6 @@ namespace MeLi.UrlShortener.Application.Services
         {
             await _urlCache.DeleteLongUrlAsync(shortCode);
             return await _urlRepository.DeleteAsync(shortCode);
-        }
-
-        public async Task<UrlResponseDto> GetUrlStatsAsync(string shortCode)
-        {
-            var urlEntity = await _urlRepository.GetByShortCodeAsync(shortCode)
-                ?? throw new KeyNotFoundException("Short URL not found");
-
-            return new UrlResponseDto($"{_generalConfig.BaseUrl}/{urlEntity.ShortCode}");
         }
     }
 }

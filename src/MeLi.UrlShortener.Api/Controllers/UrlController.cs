@@ -1,6 +1,7 @@
 ﻿using MeLi.UrlShortener.Application.DTOs;
 using MeLi.UrlShortener.Application.Interfaces;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Routing;
 
 namespace MeLi.UrlShortener.Api.Controllers
 {
@@ -9,10 +10,12 @@ namespace MeLi.UrlShortener.Api.Controllers
     public class UrlController : ControllerBase
     {
         private readonly IUrlService _urlService;
+        private readonly IUrlHelperFactory _urlHelperFactory;
 
-        public UrlController(IUrlService urlService)
+        public UrlController(IUrlService urlService, IUrlHelperFactory urlHelperFactory)
         {
             _urlService = urlService ?? throw new ArgumentNullException(nameof(urlService));
+            _urlHelperFactory = urlHelperFactory ?? throw new ArgumentNullException(nameof(urlHelperFactory));
         }
 
         [HttpPost]
@@ -22,8 +25,13 @@ namespace MeLi.UrlShortener.Api.Controllers
         {
             try
             {
-                var result = await _urlService.CreateShortUrlAsync(request);
-                return CreatedAtAction(nameof(GetUrl), new { shortCode = result.ShortUrl.Split('/').Last() }, result);
+                var shortCode = await _urlService.CreateShortUrlAsync(request);
+                var urlHelper = _urlHelperFactory.GetUrlHelper(ControllerContext);
+
+                return CreatedAtAction(
+                    nameof(GetUrl),
+                    new { shortCode },
+                    urlHelper.ActionLink(nameof(GetUrl), values: new { shortCode }));
             }
             catch (ArgumentException ex)
             {
