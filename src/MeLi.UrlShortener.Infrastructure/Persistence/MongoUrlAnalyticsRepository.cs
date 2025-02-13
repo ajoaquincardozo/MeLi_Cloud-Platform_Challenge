@@ -182,24 +182,54 @@ namespace MeLi.UrlShortener.Infrastructure.Persistence
 
         public async Task<Dictionary<int, int>?> GetHourlyStatsAsync(
             string shortCode,
-            DateTime date)
+            DateTime date,
+            int hour)
         {
             return await ResiliencePolicies
-                .CreateAsyncPolicy<Dictionary<int, int>>()
+              .CreateAsyncPolicy<Dictionary<int, int>>()
+              .ExecuteAsync(async () =>
+              {
+                  var analytics = await _collection
+                    .Find(x => x.ShortCode == shortCode)
+                    .FirstOrDefaultAsync();
+
+                  var dailyAccess = analytics?.DailyAccesses
+                    .FirstOrDefault(x => x.Date.Date == date.Date);
+
+                  if (dailyAccess == null)
+                      return null;
+
+                  return new Dictionary<int, int> { { hour, dailyAccess.HourlyHits[hour] } };
+              });
+        }
+
+        public async Task<Dictionary<DateTime, Dictionary<int, int>>> GetHourlyStatsRangeAsync(
+            string shortCode,
+            DateTime startDate,
+            DateTime endDate,
+            int? targetHour)
+        {
+            return await ResiliencePolicies
+                .CreateAsyncPolicy<Dictionary<DateTime, Dictionary<int, int>>>()
                 .ExecuteAsync(async () =>
                 {
                     var analytics = await _collection
                         .Find(x => x.ShortCode == shortCode)
                         .FirstOrDefaultAsync();
 
-                    var dailyAccess = analytics?.DailyAccesses
-                        .FirstOrDefault(x => x.Date.Date == date.Date);
+                    if (analytics == null)
+                        return new Dictionary<DateTime, Dictionary<int, int>>();
 
-                    if (dailyAccess == null)
-                        return null;
-
-                    return Enumerable.Range(0, 24)
-                        .ToDictionary(h => h, h => dailyAccess.HourlyHits[h]);
+                    return analytics.DailyAccesses
+                        .Where(x => x.Date.Date >= startDate.Date && x.Date.Date <= endDate.Date)
+                        .ToDictionary(
+                            x => x.Date,
+                            x => targetHour.HasValue
+                                ? new Dictionary<int, int> { { targetHour.Value, x.HourlyHits[targetHour.Value] } }
+                                : Enumerable.Range(0, 24)
+                                    .Where(h => x.HourlyHits[h] > 0)
+                                    .ToDictionary(h => h, h => x.HourlyHits[h])
+                        );
                 });
         }
 

@@ -27,6 +27,16 @@ namespace MeLi.UrlShortener.Domain.Interfaces
         /// </summary>
         Task<Dictionary<int, int>?> GetHourlyStatsAsync(
             string shortCode,
-            DateTime date);
+            DateTime date,
+            int hour);
+
+        /// <summary>
+        /// Gets hourly statistics for a URL within a date range
+        /// </summary>
+        Task<Dictionary<DateTime, Dictionary<int, int>>> GetHourlyStatsRangeAsync(
+            string shortCode,
+            DateTime startDate,
+            DateTime endDate,
+            int? targetHour);
     }
 }

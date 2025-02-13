@@ -28,11 +28,21 @@ namespace MeLi.UrlShortener.Application.Interfaces
             DateTime? endDate = null);
 
         /// <summary>
-        /// Gets hourly statistics for a URL on a specific date
+        /// Gets hourly statistics for a URL within a date range
+        /// </summary>
+        Task<Dictionary<DateTime, Dictionary<int, int>>> GetHourlyStatsRangeAsync(
+            string shortCode,
+            DateTime startDate,
+            DateTime endDate,
+            int? targetHour);
+
+        /// <summary>
+        /// Gets hourly statistics for a URL on a specific date and hour
         /// </summary>
         Task<Dictionary<int, int>?> GetHourlyStatsAsync(
             string shortCode,
-            DateTime date);
+            DateTime date,
+            int hour);
 
         /// <summary>
         /// Gets a summary of URL statistics

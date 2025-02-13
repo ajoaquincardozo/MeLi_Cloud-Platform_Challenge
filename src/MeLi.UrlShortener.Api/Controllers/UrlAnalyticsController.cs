@@ -79,16 +79,36 @@ namespace MeLi.UrlShortener.Api.Controllers
         /// Gets hourly statistics for a URL on a specific date
         /// </summary>
         [HttpGet("{shortCode}/hourly")]
-        [ProducesResponseType(typeof(Dictionary<int, int>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(Dictionary<DateTime, Dictionary<int, int>>), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> GetHourlyStats(
             [Required] string shortCode,
-            [Required][FromQuery] DateTime date)
+            [FromQuery] DateTime? startDate = null,
+            [FromQuery] DateTime? endDate = null,
+            [FromQuery] int? hour = null)
         {
             try
             {
-                var stats = await _analyticsService.GetHourlyStatsAsync(shortCode, date);
-                if (stats == null)
+                // Support both single hour and range queries
+                if (hour.HasValue && startDate.HasValue && !endDate.HasValue)
+                {
+                    var singleHourStats = await _analyticsService.GetHourlyStatsAsync(shortCode, startDate.Value, hour.Value);
+                    if (singleHourStats == null)
+                        return NotFound();
+
+                    return Ok(new Dictionary<DateTime, Dictionary<int, int>>
+                    {
+                        { startDate.Value.Date, singleHourStats }
+                    });
+                }
+
+                var stats = await _analyticsService.GetHourlyStatsRangeAsync(
+                    shortCode,
+                    startDate ?? DateTime.UtcNow.AddDays(-7),
+                    endDate ?? DateTime.UtcNow,
+                    hour);
+
+                if (!stats.Any())
                     return NotFound();
 
                 return Ok(stats);
@@ -96,8 +116,8 @@ namespace MeLi.UrlShortener.Api.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex,
-                    "Error getting hourly stats for shortCode: {ShortCode}, date: {Date}",
-                    shortCode, date);
+                    "Error getting hourly stats for shortCode: {ShortCode}, startDate: {StartDate}, endDate: {EndDate}, hour: {Hour}",
+                    shortCode, startDate, endDate, hour);
                 throw;
             }
         }

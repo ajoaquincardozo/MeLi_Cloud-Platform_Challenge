@@ -89,20 +89,24 @@ namespace MeLi.UrlShortener.Application.Services
 
         public async Task<Dictionary<int, int>?> GetHourlyStatsAsync(
             string shortCode,
-            DateTime date)
+            DateTime date,
+            int hour)
         {
             try
             {
-                var cacheKey = $"hourly:{shortCode}:{date:yyyy-MM-dd}";
+                if (hour < 0 || hour > 23)
+                    throw new ArgumentOutOfRangeException(nameof(hour), "Hour must be between 0 and 23.");
+
+                var cacheKey = $"hourly:{shortCode}:{date:yyyy-MM-dd}:{hour}";
                 var cachedStats = await _cache.GetAsync<Dictionary<int, int>>(cacheKey);
                 if (cachedStats != null)
                     return cachedStats;
 
-                var stats = await _analyticsRepository.GetHourlyStatsAsync(shortCode, date);
+                var stats = await _analyticsRepository.GetHourlyStatsAsync(shortCode, date, hour);
                 if (stats != null)
                 {
                     // Cache hourly stats for longer as historical data changes less frequently
-                    await _cache.SetAsync(cacheKey, stats, TimeSpan.FromHours(1));
+                    await _cache.SetAsync(cacheKey, stats, TimeSpan.FromMinutes(5));
                 }
 
                 return stats;
@@ -112,6 +116,41 @@ namespace MeLi.UrlShortener.Application.Services
                 _logger.LogError(ex,
                     "Error getting hourly stats for shortCode: {ShortCode}, date: {Date}",
                     shortCode, date);
+                throw;
+            }
+        }
+
+        public async Task<Dictionary<DateTime, Dictionary<int, int>>> GetHourlyStatsRangeAsync(
+            string shortCode,
+            DateTime startDate,
+            DateTime endDate,
+            int? targetHour)
+        {
+            try
+            {
+                var cacheKey = targetHour.HasValue
+                       ? $"hourly_range:{shortCode}:{startDate:yyyy-MM-dd}:{endDate:yyyy-MM-dd}:{targetHour}"
+                       : $"hourly_range:{shortCode}:{startDate:yyyy-MM-dd}:{endDate:yyyy-MM-dd}";
+
+                var cachedStats = await _cache.GetAsync<Dictionary<DateTime, Dictionary<int, int>>>(cacheKey);
+                if (cachedStats != null)
+                    return cachedStats;
+
+                var stats = await _analyticsRepository.GetHourlyStatsRangeAsync(shortCode, startDate, endDate, targetHour);
+
+                if (stats.Any())
+                {
+                    // Cache for a shorter period as this is aggregate data
+                    await _cache.SetAsync(cacheKey, stats, TimeSpan.FromMinutes(5));
+                }
+
+                return stats;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex,
+                    "Error getting hourly stats range for shortCode: {ShortCode}, startDate: {StartDate}, endDate: {EndDate}",
+                    shortCode, startDate, endDate);
                 throw;
             }
         }
