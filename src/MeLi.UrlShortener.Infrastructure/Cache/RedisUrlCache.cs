@@ -5,6 +5,8 @@ using MeLi.UrlShortener.Application.Cache;
 using System.Text.Json;
 using MeLi.UrlShortener.Domain.Entities;
 using MeLi.UrlShortener.Infrastructure.Cache.Converters;
+using MeLi.UrlShortener.Infrastructure.Resilience;
+using Microsoft.Extensions.Logging;
 
 namespace MeLi.UrlShortener.Infrastructure.Cache
 {
@@ -13,8 +15,9 @@ namespace MeLi.UrlShortener.Infrastructure.Cache
         private readonly IConnectionMultiplexer _redis;
         private const int DefaultTtlMinutes = 10;
         private readonly JsonSerializerOptions _jsonOptions;
+        private readonly ILogger<RedisUrlCache> _logger;
 
-        public RedisUrlCache(IOptions<RedisSettings> settings)
+        public RedisUrlCache(IOptions<RedisSettings> settings, ILogger<RedisUrlCache> logger)
         {
             if (settings?.Value == null)
                 throw new ArgumentNullException(nameof(settings));
@@ -26,38 +29,35 @@ namespace MeLi.UrlShortener.Infrastructure.Cache
                 PropertyNamingPolicy = null
             };
             _jsonOptions.Converters.Add(new PrivateSetterJsonConverter<UrlAnalytics>());
+            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
-        public async Task<string?> GetLongUrlAsync(string shortCode)
+        public async Task<string> GetLongUrlAsync(string shortCode)
         {
-            try
-            {
-                var db = _redis.GetDatabase();
-                var value = await db.StringGetAsync(GetKey(shortCode));
-                return value.HasValue ? value.ToString() : null;
-            }
-            catch (Exception ex)
-            {
-                // Log error but don't throw - let the system fallback to MongoDB
-                return null;
-            }
+            return await ResiliencePolicies
+                .CreateAsyncPolicy<string>()
+                .ExecuteAsync(async () => {
+                    var db = _redis.GetDatabase();
+                    var value = await db.StringGetAsync(GetKey(shortCode));
+                    return value.HasValue ? value.ToString() : null;
+                });
         }
 
         public async Task SetUrlAsync(string shortCode, string longUrl, TimeSpan? ttl = null)
         {
-            try
-            {
-                var db = _redis.GetDatabase();
-                await db.StringSetAsync(
-                    GetKey(shortCode),
-                    longUrl,
-                    ttl ?? TimeSpan.FromMinutes(DefaultTtlMinutes)
-                );
-            }
-            catch (Exception ex)
-            {
-                // Log error but don't throw - the system can continue without cache
-            }
+            await ResiliencePolicies
+                .CreateAsyncPolicy<string>()
+                .ExecuteAsync(async () =>
+                {
+                    var db = _redis.GetDatabase();
+                    await db.StringSetAsync(
+                        GetKey(shortCode),
+                        longUrl,
+                        ttl ?? TimeSpan.FromMinutes(DefaultTtlMinutes)
+                    );
+
+                    return longUrl;
+                });
         }
 
         private static string GetKey(string shortCode) => $"url:{shortCode}";
@@ -69,40 +69,41 @@ namespace MeLi.UrlShortener.Infrastructure.Cache
 
         public async Task DeleteLongUrlAsync(string shortCode)
         {
-            var db = _redis.GetDatabase();
-            await db.KeyDeleteAsync(GetKey(shortCode));
+            await ResiliencePolicies
+                .CreateAsyncPolicy()
+                .ExecuteAsync(async () => {
+                    var db = _redis.GetDatabase();
+                    await db.KeyDeleteAsync(GetKey(shortCode));
+                    return string.Empty;
+                });
         }
 
         public async Task<T> GetAsync<T>(string cacheKey)
         {
-            try
-            {
-                var db = _redis.GetDatabase();
-                var value = await db.StringGetAsync(cacheKey);
-                return value.HasValue ? JsonSerializer.Deserialize<T>(value.ToString(), _jsonOptions) : default(T);
-            }
-            catch (Exception ex)
-            {
-                // Log error but don't throw - let the system fallback to MongoDB
-                return default(T);
-            }
+            return await ResiliencePolicies
+                .CreateAsyncPolicy<T>()
+                .ExecuteAsync(async () => {
+                    var db = _redis.GetDatabase();
+                    var value = await db.StringGetAsync(cacheKey);
+                    return value.HasValue
+                        ? JsonSerializer.Deserialize<T>(value.ToString(), _jsonOptions)
+                        : default;
+                });
         }
 
-        public async Task SetAsync<T>(string cacheKey, T entity, TimeSpan? ttl = null)
+        public async Task SetAsync<T>(string cacheKey, T entity, TimeSpan? timeSpan = null)
         {
-            try
-            {
-                var db = _redis.GetDatabase();
-                await db.StringSetAsync(
-                    cacheKey,
-                    JsonSerializer.Serialize(entity, _jsonOptions),
-                    ttl ?? TimeSpan.FromMinutes(DefaultTtlMinutes)
-                );
-            }
-            catch (Exception ex)
-            {
-                // Log error but don't throw - the system can continue without cache
-            }
+            await ResiliencePolicies
+                .CreateAsyncPolicy()
+                .ExecuteAsync(async () => {
+                    var db = _redis.GetDatabase();
+                    var jsonValue = JsonSerializer.Serialize(entity, _jsonOptions);
+                    await db.StringSetAsync(
+                        cacheKey,
+                        jsonValue,
+                        timeSpan ?? TimeSpan.FromMinutes(DefaultTtlMinutes)
+                    );
+                });
         }
     }
 }
